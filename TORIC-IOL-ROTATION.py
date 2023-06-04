@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import math
 import matplotlib.pyplot as plt
+import pandas as pd
 
 def to_corneal_plane (vertex, spectacle_refraction):
     d = vertex/1000
@@ -335,7 +336,7 @@ def astigmatism_correction_modified(cil_cp, iol_ax, res_esf, res_cil, res_ax):
     return ideal_iol_position, res_esf_postrot, res_cil_postrot, res_axis_postrot
 
 
-import pandas as pd
+
 df = pd.read_excel("astigmatism2.xlsx", engine = "openpyxl")
 print(df)
 ideal_iol_position_list = []; res_esf_postrot_list = []; res_cil_postrot_list = []; res_axis_postrot_list = []
