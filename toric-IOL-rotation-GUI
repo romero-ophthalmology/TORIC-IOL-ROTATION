@@ -1,0 +1,379 @@
+import pandas as pd
+import numpy as np
+import math
+import matplotlib.pyplot as plt
+import pandas as pd
+import tkinter as tk
+
+def to_corneal_plane (vertex, spectacle_refraction):
+    d = vertex/1000
+    cp = spectacle_refraction / 1 -(d*spectacle_refraction)
+    return cp
+
+def to_spectacle_plane (vertex, corneal_plane_refraction):
+    d = vertex/1000
+    sp = corneal_plane_refraction / 1 +(d*corneal_plane_refraction)
+    return sp
+
+
+d = 12/1000
+
+
+
+#cilinder at corneal plane
+#current IOL axis
+#current sphere
+#current cylinder
+
+
+
+def polar_to_rectangular(cylinder, axis):
+    X = cylinder * math.cos(2*axis)
+    Y = cylinder * math.sin(2 * axis)
+
+    return (X, Y)
+
+
+
+
+def astigmatism_correction(cil_cp, iol_ax, res_esf, res_cil, res_ax):
+
+    res_esf = to_corneal_plane(d,res_esf)
+    res_cil = to_corneal_plane(d, res_cil)
+    if res_cil < 0:
+        res_esf = res_esf + res_cil
+        res_cil = - res_cil
+        if res_ax <= 90:
+            res_ax = res_ax + 90
+        else:
+            res_ax = res_ax - 90
+
+    Ref_X, Ref_Y = polar_to_rectangular(res_cil,math.radians(res_ax))
+    LT_X, LT_Y = polar_to_rectangular(cil_cp, math.radians(iol_ax))
+
+
+    Astig_X = Ref_X + LT_X
+    Astig_Y = Ref_Y + LT_Y
+    angle = math.atan(Astig_Y/Astig_X)
+
+    Astig = Astig_Y / math.sin(angle)
+
+    # print(Astig)
+    # print(math.degrees(angle)/2)
+
+    degree_list = []
+
+    for i in range(0,180):
+        degree_list.append(i)
+
+    # print(degree_list)
+
+    rot_list = []
+    rot_degree_list=[]
+
+    for i in degree_list:
+        LT_X, LT_Y = polar_to_rectangular(cil_cp, math.radians(i))
+        Rot_X = Astig_X - LT_X
+        Rot_Y = Astig_Y - LT_Y
+        Rot_axis = math.atan(Rot_Y/Rot_X)
+        Rot = Rot_Y / math.sin(Rot_axis)
+        # print(Rot)
+        if Rot_axis <0:
+            Rot_axis = Rot_axis + math.pi
+
+        Rot = Rot_Y / math.sin(Rot_axis)
+         # print(Rot)
+        rot_list.append(Rot)
+        rot_degree_list.append(math.degrees(Rot_axis)/2)
+
+
+
+    df_rango = pd.DataFrame((list(
+            zip(rot_list, rot_degree_list))))
+    df_rango.to_excel("IOL_positions.xlsx")
+
+    rot_list_abs = []
+    for i in rot_list:
+        i = math.sqrt(i*i)
+        rot_list_abs.append(i)
+    min_abs = min(rot_list_abs)
+
+    index_min = rot_list_abs.index(min_abs)
+    min_cil = rot_list[index_min]
+    degree = degree_list[index_min]
+    rot_degree = rot_degree_list[index_min]
+
+    spherical_equivalent = res_esf + 0.5 * res_cil
+    sphere = spherical_equivalent - 0.5 * (min_cil)
+    if min_cil < 0:
+        sphere = sphere + min_cil
+        min_cil = - min_cil
+        if rot_degree <= 90:
+            rot_degree2 = rot_degree + 90
+        else:
+            rot_degree2 = rot_degree - 90
+        rot_degree= rot_degree2
+    sphere = to_spectacle_plane(d,sphere)
+    min_cil = to_spectacle_plane(d, min_cil)
+    rot_degree = round(rot_degree)
+    res_esf_postrot =round(sphere,2)
+    res_cil_postrot = round(min_cil, 2)
+    res_axis_postrot = rot_degree
+    ideal_iol_position = degree
+    rot_list_abs= []
+    for i in rot_list:
+        rot_list_abs.append(abs(i))
+
+    plt.plot(degree_list, rot_list_abs)
+    plt.scatter(ideal_iol_position, res_cil_postrot)
+    plt.scatter(iol_ax,res_cil)
+    t = ["Best IOL position: {}".format(ideal_iol_position)]
+    t1 = ["Residual Sphere: {}".format(res_esf_postrot)]
+    t2 = ["Expected cylinder: {}".format(res_cil_postrot)]
+    t3 = ["Axis of residual cylinder: {}".format(rot_degree)]
+    t4 = ["Initial IOL position: {}".format(iol_ax)]
+    t5 = ["Initial residual cylinder: {}".format(res_cil)]
+    #plt.text(ideal_iol_position-40, res_cil_postrot-1, t2)
+
+
+    textstr ='\n'.join((
+    "Best IOL position: {}".format(ideal_iol_position),
+    "Residual Sphere: {}".format(res_esf_postrot),
+    "Expected cylinder: {}".format(res_cil_postrot),
+    "Axis of residual cylinder: {}".format(rot_degree)))
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.3)
+    top = max(rot_list_abs)+1
+    top2 = top-0.20
+    plt.ylim(0, top)
+    plt.text(179, top2, textstr, fontsize=10, ha = "right", verticalalignment='top', bbox=props)
+    #plt.text(ideal_iol_position - 40, res_cil_postrot - 1.5, t2)
+    #plt.text(ideal_iol_position - 40, res_cil_postrot - 2, t3)
+    #plt.text(iol_ax - 40, res_cil - 1, t5)
+    #plt.text(iol_ax - 40, res_cil - 1.5, t5)
+    plt.show()
+    print(t)
+    print(t1)
+    print(t2)
+    print(t3)
+    return ideal_iol_position, res_esf_postrot, res_cil_postrot, res_axis_postrot,
+
+
+
+def grades_to_refraction(cil_cp, iol_ax, res_esf, res_cil, res_ax, iol_rotated):
+    res_esf = to_corneal_plane(d, res_esf)
+    res_cil = to_corneal_plane(d, res_cil)
+    if res_cil < 0:
+        res_esf = res_esf + res_cil
+        res_cil = - res_cil
+        if res_ax <= 90:
+            res_ax = res_ax + 90
+        else:
+            res_ax = res_ax - 90
+
+    Ref_X, Ref_Y = polar_to_rectangular(res_cil, math.radians(res_ax))
+    LT_X, LT_Y = polar_to_rectangular(cil_cp, math.radians(iol_ax))
+
+    Astig_X = Ref_X + LT_X
+    Astig_Y = Ref_Y + LT_Y
+    angle = math.atan(Astig_Y / Astig_X)
+
+    Astig = Astig_Y / math.sin(angle)
+
+    # print(Astig)
+    # print(math.degrees(angle)/2)
+
+
+    degree_list2 =[]
+    # print(degree_list)
+    for i in range(0,180):
+        degree_list2.append(i)
+    rot_list2 = []
+    rot_degree_list = []
+
+    for i in degree_list2:
+        LT_X, LT_Y = polar_to_rectangular(cil_cp, math.radians(i))
+        Rot_X = Astig_X - LT_X
+        Rot_Y = Astig_Y - LT_Y
+        Rot_axis = math.atan(Rot_Y / Rot_X)
+        Rot = Rot_Y / math.sin(Rot_axis)
+        # print(Rot)
+
+        if Rot <0:
+            Rot = -Rot
+            Rot_axis = Rot_axis + math.pi
+        # if Rot_axis < 0:
+        #     Rot_axis = Rot_axis + math.pi
+
+        Rot = Rot_Y / math.sin(Rot_axis)
+        # print(Rot)
+        rot_list2.append(Rot)
+        rot_degree_list.append(math.degrees(Rot_axis) / 2)
+
+    # df_rango = pd.DataFrame((list(
+    #     zip(rot_list2, degree_list2))))
+    # df_rango.to_excel("refraction3.xlsx")
+    degree_list = [iol_rotated]
+    print(degree_list)
+
+    rot_list = []
+    rot_degree_list = []
+
+    for i in degree_list:
+        LT_X, LT_Y = polar_to_rectangular(cil_cp, math.radians(i))
+        Rot_X = Astig_X - LT_X
+        Rot_Y = Astig_Y - LT_Y
+        Rot_axis = math.atan(Rot_Y / Rot_X)
+        Rot = Rot_Y / math.sin(Rot_axis)
+        # print(Rot)
+
+
+        if Rot_axis < 0:
+            Rot_axis = Rot_axis + math.pi
+
+        Rot = Rot_Y / math.sin(Rot_axis)
+        # print(Rot)
+        rot_list.append(Rot)
+        rot_degree_list.append(math.degrees(Rot_axis) / 2)
+
+    df_rango = pd.DataFrame((list(
+        zip(rot_list, rot_degree_list))))
+    df_rango.to_excel("refraction.xlsx")
+
+    rot_list_abs = []
+    for i in rot_list:
+
+        i = math.sqrt(i * i)
+        rot_list_abs.append(i)
+    min_abs = min(rot_list_abs)
+    print(min_abs)
+    index_min = rot_list_abs.index(min_abs)
+    min_cil = rot_list[index_min]
+    degree = degree_list[index_min]
+    rot_degree = rot_degree_list[index_min]
+
+    spherical_equivalent = res_esf + 0.5 * res_cil
+    sphere = spherical_equivalent - 0.5 * (min_cil)
+    if min_cil < 0:
+        sphere = sphere + min_cil
+        min_cil = - min_cil
+        if rot_degree <= 90:
+            rot_degree2 = rot_degree + 90
+        else:
+            rot_degree2 = rot_degree - 90
+        rot_degree = rot_degree2
+    sphere = to_spectacle_plane(d, sphere)
+    min_cil = to_spectacle_plane(d, min_cil)
+    rot_degree = round(rot_degree)
+    res_esf_postrot = round(sphere, 2)
+    res_cil_postrot = round(min_cil, 2)
+    res_axis_postrot = rot_degree
+    ideal_iol_position = degree
+    return ideal_iol_position, res_esf_postrot, res_cil_postrot, res_axis_postrot
+
+
+def button_push():
+    cil_cp = e1.get();
+    iol_ax = e2.get();
+    res_esf = e3.get();
+    res_cil = e4.get();
+    res_ax = e5.get();
+    start_calculation(cil_cp, iol_ax, res_esf, res_cil, res_ax)
+
+
+def start_calculation(cil, iol,esf, astig,ax):
+    astigmatism_correction(float(cil), float(iol), float(esf), float(astig), float(ax))
+
+
+
+def multiple_analysis():
+    import pandas as pd
+    df = pd.read_excel("input_database.xlsx", engine="openpyxl")
+    print(df)
+    ideal_iol_position_list = [];
+    res_esf_postrot_list = [];
+    res_cil_postrot_list = [];
+    res_axis_postrot_list = []
+    p = 0
+
+    for i in df["CilCP"]:
+        ideal_iol_position, res_esf_postrot, res_cil_postrot, res_axis_postrot = grades_to_refraction(i, iol_ax=
+        df["IOL_Ax"][p],
+                                                                                                      res_esf=
+                                                                                                      df["res_esf"][p],
+                                                                                                      res_cil=
+                                                                                                      df["res_cil"][p],
+                                                                                                      res_ax=
+                                                                                                      df["res_axis"][p],
+                                                                                                      iol_rotated=df[
+                                                                                                          "eje lio post rot"][
+                                                                                                          p])
+        ideal_iol_position_list.append(ideal_iol_position), res_esf_postrot_list.append(
+            res_esf_postrot), res_cil_postrot_list.append(res_cil_postrot), res_axis_postrot_list.append(
+            res_axis_postrot)
+        df_ex = pd.DataFrame(
+            (list(zip(ideal_iol_position_list, res_esf_postrot_list, res_cil_postrot_list, res_axis_postrot_list))))
+        df_ex.to_excel("results.xlsx")
+
+        p = p + 1
+
+
+def license_b():
+    messagebox.showinfo(title="Info",
+                          message="THIS CALCULATOR HAS BEEN DEVELOPED BY DR DANIEL ROMERO-VALERO AND IT IS BASED ON THEORETICAL ENTRIES. THE CALCULATOR IS PROVIDED AS-IS, WITHOUT ANY WARRANTY WHATSOEVER. THE DIAGNOSTIC INFORMATION PROVIDED BY THE CALCULATOR IS PROVIDED FOR LICENSEE'S CONVENIENCE, BUT SHOULD NOT BE USED FOR FINAL DIAGNOSIS OR AS A SUBSTITUTE FOR LICENSEE'S MEDICAL EXPERTISE. WHILE EFFORTS HAVE BEEN MADE TO MAKE THE INFORMATION PROVIDED BY THE CALCULATOR HELPFUL AND ACCURATE, DR ROMERO-VALERO DOES NOT WARRANT THE ACCURACY OF THE INFORMATION OBTAINED FROM THE CALCULATOR", )
+
+
+root = tk.Tk()
+root.geometry("400x200")
+from tkinter import messagebox
+root.title("Toric - Analyzer")
+
+#
+
+cil_cp = 1
+iol_ax = 1
+res_esf = 1
+res_cil = 1
+res_ax = 1
+
+
+
+tk.Label(root, text='Toric Cylinder of the IOL at Corneal Plane: ').grid(row=0)
+
+tk.Label(root, text='Current IOL axis: ').grid(row=1)
+
+tk.Label(root, text='Residual Sphere: ').grid(row=2)
+tk.Label(root, text='Residual Astigmatism: ').grid(row=3)
+tk.Label(root, text='Axis of Residual astigmatism: ').grid(row=4)
+#
+e1 = tk.Entry(root)
+e2  = tk.Entry(root)
+e3 = tk.Entry(root)
+e4 = tk.Entry(root)
+e5 = tk.Entry(root)
+e1.grid(row=0, column=1)
+e2.grid(row=1, column=1)
+e3.grid(row=2, column=1)
+e4.grid(row=3, column=1)
+e5.grid(row=4, column=1)
+#
+
+submit_button = tk.Button(root, text = "Calculate", command= lambda: button_push()).grid(row=6)
+
+multiple_button = tk.Button(root, text = "Calculate from Excel", command= lambda: multiple_analysis()).grid(row=6, column=1)
+
+license_button = tk.Button(root, text = "About", command= lambda : license_b()).grid(row=6, column=2)
+
+
+
+
+#
+#
+#
+root.mainloop()
+# cil_cp = float(input("Toric Cylinder of the IOL at Corneal Plane: "))
+# iol_ax = float(input("Current IOL axis: "))
+# res_esf = float(input("Residual Sphere: "))
+# res_cil = float(input("Residual Astigmatism: "))
+# res_ax = float(input("Axis of Residual astigmatism: "))
+#
+# astigmatism_correction(cil_cp, iol_ax, res_esf, res_cil, res_ax)
